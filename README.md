@@ -1,2 +1,2 @@
 # Modeling-Simulation
-Boarding a plane simulation 
+Boarding a plane simulation study 
