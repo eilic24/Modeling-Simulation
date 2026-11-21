@@ -1,0 +1,65 @@
+---
+title: "Simulation Project Planning"
+date: "2026-11-21"
+format: 
+  html: 
+    embed-resources: true
+editor: source
+---
+
+## Methods of Boarding a Plane
+
+Assume a plane with 12 rows, 6 seats per row, and 1 aisle down the middle of the plane like the one Steffen used in his experiment (https://arxiv.org/html/1108.5211v1#S4).
+
+### Ela
+**1) Completely random**
+People board and randomly choose any open seat
+
+**2) Back-to-front boarding**
+Each row is filled one-by-one, back to front
+
+**3) Window, middle, aisle**
+All window seats first, then all middle seats, then all aisle seats
+
+### Gavin
+**4) Tiered boarding**
+First class boards in their section, business class boards in their section, economy boards in their section
+
+**5) Completely random, but the passengers enter in waves**
+For example, Southwest's open seating system with Groups A, B, and C
+
+**6) Steffen Method**
+Supposed to be the most optimal method
+
+## Components of the Project
+
+- Generate a population
+- Take a random sample of the population
+- Run simulations
+
+## Random Variables
+
+- Whether or not a passenger stores luggage in an overhead bin (About 87% of passengers use the overheard bin.)
+- Time that it takes for a passenger to get to their seat once they enter the plane
+- Families boarding together, elderly people boarding
+
+Model the time it takes from entering to sitting down as a normal distribution with $\mu = 2$.
+
+## Start Coding
+
+```{r}
+n_row = 12
+n_col = 6
+n_passengers = n_row * n_col
+
+mat <- matrix(0, nrow = n_row, ncol = n_col, byrow = TRUE)
+print(mat)
+
+passengers <- c(1:72)
+
+samp <- sample(passengers)
+
+result <- mat + samp
+print(result)
+
+```
