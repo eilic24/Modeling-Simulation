@@ -1,0 +1,226 @@
+---
+title: "Gavin Boarding Simulations"
+author: "Gavin Hein"
+date: "2026-11-21"
+format: html
+editor: visual
+---
+
+## Methods that I will implement:
+**4) Tiered boarding**
+First class boards in their section, business class boards in their section, economy boards in their section
+
+**5) Completely random, but the passengers enter in waves**
+For example, Southwest's open seating system (I don't think they do this anymore) with Groups A, B, and C
+
+**6) Steffen Method**
+Supposed to be the most optimal method
+
+## Planning:
+**4) Tiered Boarding**
+72 passengers board a plane with 12 rows and 6 columns. There's one aisle down the middle of the plane. The 72 passengers are split into three groups: first class, business class, and economy. First class passengers board their section (rows 1 and 2). Business class passengers board their section (rows 3-5). Economy passengers board their section (rows 6-12). There are no assigned seats. The constraints are just that the groups enter in order, and each person in each group sits in a random, unoccupied seat of their section.
+
+**5) Completely random, but the passengers enter in waves**
+The 72 passengers are randomly split into three groups of 24 called A, B, and C. Group A passengers board first, and each Group A passenger takes a random, unoccupied seat anywhere in the plane. Groups B and C follow, but each subsequent group has fewer seats to choose from.
+
+**6) Steffen Method**
+The 72 passengers are lined up and seated in the following order, from back to front:
+1) Window seat, odd-numbered
+2) Window seat, even-numbered
+3) Middle seat, odd-numbered
+4) Middle seat, even-numbered
+5) Aisle seat, odd-numbered
+6) Aisle seat, even-numbered
+It is supposed to be the most optimal boarding method.
+
+## Coding
+**5) Completely random, but the passengers enter in waves**
+
+### Setting up
+```{r}
+library(tidyverse)
+set.seed(67)
+
+n_row <- 12
+n_col <- 6
+n_groups <- 3
+n_passengers <- n_row * n_col
+
+plane_mat <- matrix(0, nrow = n_row, ncol = n_col, byrow = TRUE)
+print(plane_mat)   # The plane at the start of the simulation
+
+target_seats <- 1:n_passengers
+
+# Each passenger has an assigned group and a seat that they will randomly choose. Let's say that 87% of passengers use the overhead bin.
+passengers <- data.frame(
+  id = sample(target_seats), 
+  group = sample(rep(1:n_groups, length.out = n_passengers)), 
+  target_seat = target_seats, 
+  target_row = c(rep(1:n_row, n_col)), 
+  overhead = rbinom(n = n_passengers, size = 1, prob = 0.87)
+)
+passengers$overhead_time <- ifelse(passengers$overhead == 1, floor(rnorm(n = n_passengers, mean = 2.5, sd = 0.5)), 0)
+passengers <- passengers %>%
+  mutate(
+    plane_mat_column = case_when(
+      target_seat >= 1 & target_seat <= 12 ~ 1, 
+      target_seat > 12 & target_seat <= 24 ~ 2, 
+      target_seat > 24 & target_seat <= 36 ~ 3, 
+      target_seat > 36 & target_seat <= 48 ~ 4, 
+      target_seat > 48 & target_seat <= 60 ~ 5, 
+      target_seat > 60 & target_seat <= 72 ~ 6
+    ), 
+    seat_type = case_when(
+      plane_mat_column == 1 | plane_mat_column == 6 ~ "window", 
+      plane_mat_column == 2 | plane_mat_column == 5 ~ "middle", 
+      plane_mat_column == 3 | plane_mat_column == 4 ~ "aisle"
+    )
+  )
+
+target_mat <- plane_mat + passengers$id
+print(target_mat)   # The positions of all the passengers after they have boarded
+
+# Determine the order in which the passengers enter the plane
+
+# Group A
+group_a <- passengers %>% filter(group == 1)
+shuffled_idx_a <- sample(nrow(group_a))
+group_a_order <- data.frame(
+  id = group_a$id[shuffled_idx_a], 
+  target_row = group_a$target_row[shuffled_idx_a], 
+  overhead_time = group_a$overhead_time[shuffled_idx_a], 
+  plane_mat_column = group_a$plane_mat_column[shuffled_idx_a]
+)
+
+# Group B
+group_b <- passengers %>% filter(group == 2)
+shuffled_idx_b <- sample(nrow(group_b))
+group_b_order <- data.frame(
+  id = group_b$id[shuffled_idx_b], 
+  target_row = group_b$target_row[shuffled_idx_b], 
+  overhead_time = group_b$overhead_time[shuffled_idx_b], 
+  plane_mat_column = group_b$plane_mat_column[shuffled_idx_b]
+)
+
+# Group C
+group_c <- passengers %>% filter(group == 3)
+shuffled_idx_c <- sample(nrow(group_c))
+group_c_order <- data.frame(
+  id = group_c$id[shuffled_idx_c], 
+  target_row = group_c$target_row[shuffled_idx_c], 
+  overhead_time = group_c$overhead_time[shuffled_idx_c], 
+  plane_mat_column = group_c$plane_mat_column[shuffled_idx_c]
+)
+
+```
+
+### The Simulation Function
+```{r}
+
+# Function for boarding a group
+board_group <- function(group_order_df, plane_mat, time) {
+
+  # Initialize things
+  next_person <- 1
+  aisle_df <- data.frame(
+    in_aisle = rep(0, length.out = n_row), 
+    row_num = 1:n_row
+  )
+  
+  while (next_person <= nrow(group_order_df) || any(aisle_df$in_aisle > 0)) {
+    time <- time + 1
+  
+    for (i in seq_len(n_row)) {     # Loop through the rows of the plane
+      if (aisle_df$in_aisle[i] > 0) {     # If there is a person in the aisle
+        target <- group_order_df$target_row[group_order_df$id == aisle_df$in_aisle[i]]     # Get that person's target row
+      
+        if (i == target) {     # If that person is in their target row
+          # Handling the overhead bins
+          overhead_time <- group_order_df$overhead_time[group_order_df$id == aisle_df$in_aisle[i]]     # Get that person's overhead time
+          time <- time + overhead_time     # Add their overhead time to the overall time
+        
+          # Updating that person's location
+          plane_mat[i, group_order_df$plane_mat_column[group_order_df$id == aisle_df$in_aisle[i]]] <- aisle_df$in_aisle[i]     # Add them to the plane matrix
+          aisle_df$in_aisle[i] <- 0     # Remove that person from the aisle
+        }
+      }
+    }
+    aisle_df$in_aisle <- c(0, aisle_df$in_aisle[-n_row])     # Move everyone in the queue forward by one position
+  
+    if (next_person <= nrow(group_order_df)) {     # If there is still someone yet to enter the plane aisle
+      aisle_df$in_aisle[1] <- group_order_df$id[next_person]     # Assign them to the first position of the aisle, which is now empty
+      next_person <- next_person + 1
+    }
+  
+    # print(aisle_df$in_aisle)
+  
+  }
+
+return(list(plane_mat, time))
+
+}
+
+```
+
+### Getting the Results
+```{r}
+# Group A
+plane_mat_pre_a <- matrix(0, nrow = n_row, ncol = n_col, byrow = TRUE)
+time_pre_a <- 0
+
+print("Before A")
+print(plane_mat_pre_a)
+print(time_pre_a)
+
+board_group_a_results <- board_group(group_a_order, plane_mat_pre_a, time_pre_a)
+
+# Group B
+plane_mat_pre_b <- board_group_a_results[[1]]
+time_pre_b <- board_group_a_results[[2]]
+
+print("Before B")
+print(plane_mat_pre_b)
+print(time_pre_b)
+
+board_group_b_results <- board_group(group_b_order, plane_mat_pre_b, time_pre_b)
+
+# Group C
+plane_mat_pre_c <- board_group_b_results[[1]]
+time_pre_c <- board_group_b_results[[2]]
+
+print("Before C")
+print(plane_mat_pre_c)
+print(time_pre_c)
+
+board_group_c_results <- board_group(group_c_order, plane_mat_pre_c, time_pre_c)
+
+# Final
+plane_mat_final <- board_group_c_results[[1]]
+time_final <- board_group_c_results[[2]]
+
+print("Final")
+print(plane_mat_final)
+print(time_final)
+
+# # Sanity check
+# print("Target")
+# print(target_mat)
+# print(paste0("Did it work?: ", all(plane_mat_final == target_mat)))
+
+```
+
+#### Things to Add:
+- Passengers actually getting to their seats once they're out of the aisle
+
+"Person" is someone who just reached their target row and put their luggage in the overhead bin (if applicable):
+If their seat is the aisle seat:
+  They sit down immediately.
+If their seat is the middle seat:
+  If there is no one in the aisle seat, they proceed to their seat.
+  If there is someone in the aisle seat, the person in the aisle seat gets up, lets the person sit down in the middle seat, and goes back to their seat.
+If their seat is the window seat:
+  If there is no one in the aisle or middle seats, they proceed to their seat.
+  If there is someone in both the aisle and middle seats, both get up to let the person through, and then they go back to their seats.
+  If there is one person in either the aisle or middle seats, they get up, let the person sit down in the window seat, and goes back to their seat.
+
+I need to look up "Person"'s seatmates and check if they are present.

@@ -48,9 +48,9 @@ Model the time it takes from entering to sitting down as a normal distribution w
 ## Start Coding
 
 ```{r}
-n_row = 12
-n_col = 6
-n_passengers = n_row * n_col
+n_row <- 12
+n_col <- 6
+n_passengers <- n_row * n_col
 
 mat <- matrix(0, nrow = n_row, ncol = n_col, byrow = TRUE)
 print(mat)
