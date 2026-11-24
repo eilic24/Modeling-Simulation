@@ -1,0 +1,28 @@
+---
+title: "Boarding Simulation 6"
+author: "Gavin Hein"
+date: "2026-11-24"
+format: 
+  html: 
+    embed-resources: true
+editor: source
+---
+
+## Method:
+
+**6) Steffen Method** Supposed to be the most optimal method
+
+## Planning:
+
+**6) Steffen Method** The 72 passengers are lined up and seated in the following order, from back to front: 1) Window seat, odd-numbered 2) Window seat, even-numbered 3) Middle seat, odd-numbered 4) Middle seat, even-numbered 5) Aisle seat, odd-numbered 6) Aisle seat, even-numbered It is supposed to be the most optimal boarding method.
+
+## Coding
+
+### Setting Up
+
+```{r}
+library(pbapply)
+library(tidyverse)
+set.seed(67)
+
+```

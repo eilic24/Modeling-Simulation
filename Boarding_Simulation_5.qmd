@@ -1,42 +1,25 @@
 ---
-title: "Gavin Boarding Simulations"
+title: "Boarding Simulation 5"
 author: "Gavin Hein"
-date: "2026-11-21"
-format: html
-editor: visual
+date: "2026-11-24"
+format: 
+  html: 
+    embed-resources: true
+editor: source
 ---
 
-## Methods that I will implement:
-**4) Tiered boarding**
-First class boards in their section, business class boards in their section, economy boards in their section
+## Method:
 
-**5) Completely random, but the passengers enter in waves**
-For example, Southwest's open seating system (I don't think they do this anymore) with Groups A, B, and C
-
-**6) Steffen Method**
-Supposed to be the most optimal method
+**5) Completely random, but the passengers enter in waves** For example, Southwest's open seating system (I don't think they do this anymore) with Groups A, B, and C
 
 ## Planning:
-**4) Tiered Boarding**
-72 passengers board a plane with 12 rows and 6 columns. There's one aisle down the middle of the plane. The 72 passengers are split into three groups: first class, business class, and economy. First class passengers board their section (rows 1 and 2). Business class passengers board their section (rows 3-5). Economy passengers board their section (rows 6-12). There are no assigned seats. The constraints are just that the groups enter in order, and each person in each group sits in a random, unoccupied seat of their section.
 
-**5) Completely random, but the passengers enter in waves**
-The 72 passengers are randomly split into three groups of 24 called A, B, and C. Group A passengers board first, and each Group A passenger takes a random, unoccupied seat anywhere in the plane. Groups B and C follow, but each subsequent group has fewer seats to choose from.
-
-**6) Steffen Method**
-The 72 passengers are lined up and seated in the following order, from back to front:
-1) Window seat, odd-numbered
-2) Window seat, even-numbered
-3) Middle seat, odd-numbered
-4) Middle seat, even-numbered
-5) Aisle seat, odd-numbered
-6) Aisle seat, even-numbered
-It is supposed to be the most optimal boarding method.
+**5) Completely random, but the passengers enter in waves** The 72 passengers are randomly split into three groups of 24 called A, B, and C. Group A passengers board first, and each Group A passenger takes a random, unoccupied seat anywhere in the plane. Groups B and C follow, but each subsequent group has fewer seats to choose from.
 
 ## Coding
-**5) Completely random, but the passengers enter in waves**
 
 ### Setting Up
+
 ```{r}
 library(pbapply)
 library(tidyverse)
@@ -45,6 +28,7 @@ set.seed(67)
 ```
 
 ### Preparing for the Boarding
+
 ```{r}
 # Determine the order in which the passengers enter the plane
   order_group <- function(full_df, group_num) {
@@ -105,6 +89,7 @@ prepare_func <- function(n_row, n_col, n_groups) {
 ```
 
 ### The Simulation Function
+
 ```{r}
 # The gamma distribution is right-skewed and can model waiting times
 passenger_shuffle_time <- function(n_block) {
@@ -189,6 +174,7 @@ board_group <- function(group_order_df, plane_mat, time, n_row) {
 ```
 
 ### Getting the Results (of one simulation)
+
 ```{r}
 run_one_sim <- function() {
   prepare_func_output <- prepare_func(
@@ -269,6 +255,7 @@ run_one_sim <- function() {
 ```
 
 ### Actually running the simulation!
+
 ```{r}
 results_vec <- pbreplicate(n = 1000, expr = {run_one_sim()})   # Same as `replicate()` but with a progress bar and estimated time remaining
 results <- mean(results_vec)
