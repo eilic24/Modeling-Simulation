@@ -36,191 +36,242 @@ It is supposed to be the most optimal boarding method.
 ## Coding
 **5) Completely random, but the passengers enter in waves**
 
-### Setting up
+### Setting Up
 ```{r}
+library(pbapply)
 library(tidyverse)
 set.seed(67)
 
-n_row <- 12
-n_col <- 6
-n_groups <- 3
-n_passengers <- n_row * n_col
+```
 
-plane_mat <- matrix(0, nrow = n_row, ncol = n_col, byrow = TRUE)
-print(plane_mat)   # The plane at the start of the simulation
-
-target_seats <- 1:n_passengers
-
-# Each passenger has an assigned group and a seat that they will randomly choose. Let's say that 87% of passengers use the overhead bin.
-passengers <- data.frame(
-  id = sample(target_seats), 
-  group = sample(rep(1:n_groups, length.out = n_passengers)), 
-  target_seat = target_seats, 
-  target_row = c(rep(1:n_row, n_col)), 
-  overhead = rbinom(n = n_passengers, size = 1, prob = 0.87)
-)
-passengers$overhead_time <- ifelse(passengers$overhead == 1, floor(rnorm(n = n_passengers, mean = 2.5, sd = 0.5)), 0)
-passengers <- passengers %>%
-  mutate(
-    plane_mat_column = case_when(
-      target_seat >= 1 & target_seat <= 12 ~ 1, 
-      target_seat > 12 & target_seat <= 24 ~ 2, 
-      target_seat > 24 & target_seat <= 36 ~ 3, 
-      target_seat > 36 & target_seat <= 48 ~ 4, 
-      target_seat > 48 & target_seat <= 60 ~ 5, 
-      target_seat > 60 & target_seat <= 72 ~ 6
-    ), 
-    seat_type = case_when(
-      plane_mat_column == 1 | plane_mat_column == 6 ~ "window", 
-      plane_mat_column == 2 | plane_mat_column == 5 ~ "middle", 
-      plane_mat_column == 3 | plane_mat_column == 4 ~ "aisle"
-    )
-  )
-
-target_mat <- plane_mat + passengers$id
-print(target_mat)   # The positions of all the passengers after they have boarded
-
+### Preparing for the Boarding
+```{r}
 # Determine the order in which the passengers enter the plane
+  order_group <- function(full_df, group_num) {
+    group_df <- full_df %>% filter(group == group_num)
+    shuffled_idx <- sample(nrow(group_df))
+    group_order_df <- data.frame(
+      id = group_df$id[shuffled_idx], 
+      target_row = group_df$target_row[shuffled_idx], 
+      overhead_time = group_df$overhead_time[shuffled_idx], 
+      plane_mat_column = group_df$plane_mat_column[shuffled_idx]
+    )
+    return(group_order_df)
+  }
 
-# Group A
-group_a <- passengers %>% filter(group == 1)
-shuffled_idx_a <- sample(nrow(group_a))
-group_a_order <- data.frame(
-  id = group_a$id[shuffled_idx_a], 
-  target_row = group_a$target_row[shuffled_idx_a], 
-  overhead_time = group_a$overhead_time[shuffled_idx_a], 
-  plane_mat_column = group_a$plane_mat_column[shuffled_idx_a]
-)
-
-# Group B
-group_b <- passengers %>% filter(group == 2)
-shuffled_idx_b <- sample(nrow(group_b))
-group_b_order <- data.frame(
-  id = group_b$id[shuffled_idx_b], 
-  target_row = group_b$target_row[shuffled_idx_b], 
-  overhead_time = group_b$overhead_time[shuffled_idx_b], 
-  plane_mat_column = group_b$plane_mat_column[shuffled_idx_b]
-)
-
-# Group C
-group_c <- passengers %>% filter(group == 3)
-shuffled_idx_c <- sample(nrow(group_c))
-group_c_order <- data.frame(
-  id = group_c$id[shuffled_idx_c], 
-  target_row = group_c$target_row[shuffled_idx_c], 
-  overhead_time = group_c$overhead_time[shuffled_idx_c], 
-  plane_mat_column = group_c$plane_mat_column[shuffled_idx_c]
-)
+# Set up where the passengers sit, what group they're in, how long they need at the overhead bins, etc.
+prepare_func <- function(n_row, n_col, n_groups) {
+  n_passengers <- n_row * n_col
+  target_seats <- 1:n_passengers
+  
+  # Each passenger has an assigned group and a seat that they will randomly choose. Let's say that 87% of passengers use the overhead bin.
+  passengers <- data.frame(
+    id = sample(target_seats), 
+    group = sample(rep(1:n_groups, length.out = n_passengers)), 
+    target_seat = target_seats, 
+    target_row = c(rep(1:n_row, n_col)), 
+    overhead = rbinom(n = n_passengers, size = 1, prob = 0.87)
+  )
+  
+  # Log-normal distribution is right-skewed
+  # curve(dlnorm(x, log(2), 0.6), from = 0, to = 10)
+  passengers$overhead_time <- ifelse(passengers$overhead == 1, ceiling(rlnorm(n = n_passengers, meanlog = log(2), sdlog = 0.6)), 0)
+  
+  passengers <- passengers %>%
+    mutate(
+      plane_mat_column = case_when(
+        target_seat >= 1 & target_seat <= (n_row) ~ 1,
+        target_seat > (n_row) & target_seat <= (n_row * 2) ~ 2,
+        target_seat > (n_row * 2) & target_seat <= (n_row * 3) ~ 3,
+        target_seat > (n_row * 3) & target_seat <= (n_row * 4) ~ 4,
+        target_seat > (n_row * 4) & target_seat <= (n_row * 5) ~ 5,
+        target_seat > (n_row * 5) & target_seat <= (n_row * 6) ~ 6
+      )
+    )
+  
+  # # Sanity check
+  # plane_mat <- matrix(0, nrow = n_row, ncol = n_col, byrow = TRUE)
+  # print(plane_mat)   # The plane at the start of the simulation
+  # 
+  # target_mat <- plane_mat + passengers$id
+  # print(target_mat)   # The positions of all the passengers after they have boarded
+  
+  group_a_order <- order_group(passengers, 1)
+  group_b_order <- order_group(passengers, 2)
+  group_c_order <- order_group(passengers, 3)
+  return(list(group_a_order, group_b_order, group_c_order, n_row, n_col))
+}
 
 ```
 
 ### The Simulation Function
 ```{r}
+# The gamma distribution is right-skewed and can model waiting times
+passenger_shuffle_time <- function(n_block) {
+  if (n_block == 0) {
+    return(0)
+  } else {
+    return(ceiling(sum(rgamma(n = n_block, shape = 3, rate = 3/5))))
+  }
+}
 
 # Function for boarding a group
-board_group <- function(group_order_df, plane_mat, time) {
+board_group <- function(group_order_df, plane_mat, time, n_row) {
 
-  # Initialize things
+  # Initializations
   next_person <- 1
-  aisle_df <- data.frame(
-    in_aisle = rep(0, length.out = n_row), 
-    row_num = 1:n_row
-  )
+  in_aisle = rep(0, length.out = n_row)
+  wait = rep(-1, n_row)
   
-  while (next_person <= nrow(group_order_df) || any(aisle_df$in_aisle > 0)) {
-    time <- time + 1
+  while (next_person <= nrow(group_order_df) || any(in_aisle > 0)) {
+    time <- time + 1     # Increment the elapsed time
   
-    for (i in seq_len(n_row)) {     # Loop through the rows of the plane
-      if (aisle_df$in_aisle[i] > 0) {     # If there is a person in the aisle
-        target <- group_order_df$target_row[group_order_df$id == aisle_df$in_aisle[i]]     # Get that person's target row
+    for (i in which(in_aisle > 0)) {     # Loop through the rows of the plane, but only the ones in which there is a person in the aisle
       
-        if (i == target) {     # If that person is in their target row
-          # Handling the overhead bins
-          overhead_time <- group_order_df$overhead_time[group_order_df$id == aisle_df$in_aisle[i]]     # Get that person's overhead time
-          time <- time + overhead_time     # Add their overhead time to the overall time
+      current_person_id <- in_aisle[i]                                                        # Get their id
+      target_row <- group_order_df$target_row[group_order_df$id == current_person_id]         # Get their target row
+      target_col <- group_order_df$plane_mat_column[group_order_df$id == current_person_id]   # Get the column of their target seat
+    
+      if (i == target_row) {   # If row i is that person's target row
         
-          # Updating that person's location
-          plane_mat[i, group_order_df$plane_mat_column[group_order_df$id == aisle_df$in_aisle[i]]] <- aisle_df$in_aisle[i]     # Add them to the plane matrix
-          aisle_df$in_aisle[i] <- 0     # Remove that person from the aisle
+        if (wait[i] < 0) {     # If that person just arrived at their target row for the first time
+          overhead_time <- group_order_df$overhead_time[group_order_df$id == current_person_id]     # Get the time that they need at the overhead bin
+          
+          # Figure out how many people are between them and their seat
+          if (target_col == 1) {                      # If they're in a left window seat
+            n_block <- sum(plane_mat[i, 2:3] > 0)         # Find out if the left middle and left aisle seats are occupied
+          } else if (target_col == 2) {               # If they're in a left middle seat
+            n_block <- sum(plane_mat[i, 3] > 0)           # Find out if the left aisle seat is occupied
+          } else if (target_col == 5) {               # If they're in a right middle seat
+            n_block <- sum(plane_mat[i, 4] > 0)           # Find out if the right aisle seat is occupied
+          } else if (target_col == 6) {               # If they're in a right window seat
+            n_block <- sum(plane_mat[i, 4:5] > 0)         # Find out if the right middle and right aisle seats are occupied
+          } else {                                    # They're in an aisle seat, and this issue doesn't apply to them
+            n_block <- 0
+          }
+          
+          shuffle_time <- passenger_shuffle_time(n_block)   # Get the time they'll spend getting around people who block their seat
+          wait[i] <- overhead_time + shuffle_time           # Assign the total time units that they'll spend blocking the aisle
+        }
+        
+        if (wait[i] == 0) {     # If that person is no longer blocking the aisle of their target row
+          plane_mat[i, target_col] <- current_person_id     # Add that person to the plane matrix to indicate that they're fully seated
+          in_aisle[i] <- 0   # Remove that person from the aisle
+          wait[i] <- -1      # Reset the wait timer for this row because the person in this row is now fully seated
+        
+        } else {
+          wait[i] <- wait[i] - 1     # If that person is not done in the aisle yet, decrease their wait timer by 1
         }
       }
     }
-    aisle_df$in_aisle <- c(0, aisle_df$in_aisle[-n_row])     # Move everyone in the queue forward by one position
-  
-    if (next_person <= nrow(group_order_df)) {     # If there is still someone yet to enter the plane aisle
-      aisle_df$in_aisle[1] <- group_order_df$id[next_person]     # Assign them to the first position of the aisle, which is now empty
-      next_person <- next_person + 1
+    
+    # Loop through the back of the plane to the front, but skip the furthest back row (you can't advance if you're in the farthest back row)
+    for (i in (n_row - 1):1) {
+      
+      # If the current aisle cell has a person in it
+      # And if this cell does not have a person who is getting seated in their target row and blocking the aisle
+      # And if the cell ahead does not have a person in it
+      if (in_aisle[i] > 0 && wait[i] < 0 && in_aisle[i + 1] == 0) {
+        in_aisle[i + 1] <- in_aisle[i]   # Move the current person ahead in the aisle by 1 row
+        in_aisle[i] <- 0                 # Remove them from their current position
+      }
     }
   
-    # print(aisle_df$in_aisle)
-  
+    # If there is still someone yet to enter the plane aisle and the aisle in the first row has a space
+    if (next_person <= nrow(group_order_df) && in_aisle[1] == 0) {
+      in_aisle[1] <- group_order_df$id[next_person]   # Assign that person to the first position of the aisle, letting them enter the plane
+      next_person <- next_person + 1                  # Indicate that one more person has entered the plane
+    }
   }
-
-return(list(plane_mat, time))
-
+  return(list(plane_mat, time))
 }
 
 ```
 
-### Getting the Results
+### Getting the Results (of one simulation)
 ```{r}
-# Group A
-plane_mat_pre_a <- matrix(0, nrow = n_row, ncol = n_col, byrow = TRUE)
-time_pre_a <- 0
-
-print("Before A")
-print(plane_mat_pre_a)
-print(time_pre_a)
-
-board_group_a_results <- board_group(group_a_order, plane_mat_pre_a, time_pre_a)
-
-# Group B
-plane_mat_pre_b <- board_group_a_results[[1]]
-time_pre_b <- board_group_a_results[[2]]
-
-print("Before B")
-print(plane_mat_pre_b)
-print(time_pre_b)
-
-board_group_b_results <- board_group(group_b_order, plane_mat_pre_b, time_pre_b)
-
-# Group C
-plane_mat_pre_c <- board_group_b_results[[1]]
-time_pre_c <- board_group_b_results[[2]]
-
-print("Before C")
-print(plane_mat_pre_c)
-print(time_pre_c)
-
-board_group_c_results <- board_group(group_c_order, plane_mat_pre_c, time_pre_c)
-
-# Final
-plane_mat_final <- board_group_c_results[[1]]
-time_final <- board_group_c_results[[2]]
-
-print("Final")
-print(plane_mat_final)
-print(time_final)
-
-# # Sanity check
-# print("Target")
-# print(target_mat)
-# print(paste0("Did it work?: ", all(plane_mat_final == target_mat)))
+run_one_sim <- function() {
+  prepare_func_output <- prepare_func(
+    n_row = 12, 
+    n_col = 6, 
+    n_groups = 3
+  )
+  group_a_order <- prepare_func_output[[1]]
+  group_b_order <- prepare_func_output[[2]]
+  group_c_order <- prepare_func_output[[3]]
+  n_row <- prepare_func_output[[4]]
+  n_col <- prepare_func_output[[5]]
+  
+  # Group A
+  plane_mat_pre_a <- matrix(0, nrow = n_row, ncol = n_col, byrow = TRUE)
+  time_pre_a <- 0
+  
+  # # Sanity check
+  # print("Before A")
+  # print(plane_mat_pre_a)
+  # print(time_pre_a)
+  
+  board_group_a_results <- board_group(
+    group_order_df = group_a_order, 
+    plane_mat = plane_mat_pre_a, 
+    time = time_pre_a, 
+    n_row = n_row)
+  
+  # Group B
+  plane_mat_pre_b <- board_group_a_results[[1]]
+  time_pre_b <- board_group_a_results[[2]]
+  
+  # # Sanity check
+  # print("Before B")
+  # print(plane_mat_pre_b)
+  # print(time_pre_b)
+  
+  board_group_b_results <- board_group(
+    group_order_df = group_b_order, 
+    plane_mat = plane_mat_pre_b, 
+    time = time_pre_b, 
+    n_row = n_row
+  )
+  
+  # Group C
+  plane_mat_pre_c <- board_group_b_results[[1]]
+  time_pre_c <- board_group_b_results[[2]]
+  
+  # # Sanity check
+  # print("Before C")
+  # print(plane_mat_pre_c)
+  # print(time_pre_c)
+  
+  board_group_c_results <- board_group(
+    group_order_df = group_c_order, 
+    plane_mat = plane_mat_pre_c, 
+    time = time_pre_c, 
+    n_row = n_row
+  )
+  
+  # Final
+  plane_mat_final <- board_group_c_results[[1]]
+  time_final <- board_group_c_results[[2]]
+  
+  # # Sanity check
+  # print("Final")
+  # print(plane_mat_final)
+  # print(time_final)
+  
+  # # Sanity check
+  # print("Target")
+  # print(target_mat)
+  # print(paste0("Did it work?: ", all(plane_mat_final == target_mat)))
+  
+  return(time_final)
+}
 
 ```
 
-#### Things to Add:
-- Passengers actually getting to their seats once they're out of the aisle
+### Actually running the simulation!
+```{r}
+results_vec <- pbreplicate(n = 1000, expr = {run_one_sim()})   # Same as `replicate()` but with a progress bar and estimated time remaining
+results <- mean(results_vec)
+print(paste0("The average boarding time is ", round(results, 0), " time units."))
 
-"Person" is someone who just reached their target row and put their luggage in the overhead bin (if applicable):
-If their seat is the aisle seat:
-  They sit down immediately.
-If their seat is the middle seat:
-  If there is no one in the aisle seat, they proceed to their seat.
-  If there is someone in the aisle seat, the person in the aisle seat gets up, lets the person sit down in the middle seat, and goes back to their seat.
-If their seat is the window seat:
-  If there is no one in the aisle or middle seats, they proceed to their seat.
-  If there is someone in both the aisle and middle seats, both get up to let the person through, and then they go back to their seats.
-  If there is one person in either the aisle or middle seats, they get up, let the person sit down in the window seat, and goes back to their seat.
-
-I need to look up "Person"'s seatmates and check if they are present.
+```
